@@ -2,10 +2,13 @@ use crate::Position;
 use crate::Row;
 use std::fs;
 
+use std::io::{Error, Write};
+
 #[derive(Default)]
 pub struct Document {
     rows: Vec<Row>,
     pub file_name: Option<String>,
+    dirty: bool,
 }
 
 impl Document {
@@ -18,7 +21,20 @@ impl Document {
         Ok(Self {
             rows,
             file_name: Some(filename.to_string()),
+            dirty: false,
         })
+    }
+    pub fn save(&mut self) -> Result<(), Error> {
+        if let Some(file_name) = &self.file_name {
+            let mut file = fs::File::create(file_name)?;
+            for row in &self.rows {
+                file.write_all(row.as_bytes())?;
+                file.write_all(b"\n")?;
+            }
+            self.dirty = false;
+        }
+   
+        Ok(())
     }
     pub fn row(&self, index: usize) -> Option<&Row> {
         self.rows.get(index)
@@ -31,10 +47,6 @@ impl Document {
     }
 
     pub fn insert(&mut self, at: &Position, c: char) {
-        if c == '\n' {
-            self.insert_newline(at);
-            return;
-        }
         if at.y == self.len() {
             let mut row = Row::default();
             row.insert(0, c);
@@ -63,11 +75,18 @@ impl Document {
         if at.y > self.len() {
             return;
         }
+        self.dirty = true;
+        if at.y > self.len() {
+            return;
+        }
         if at.y == self.len() {
             self.rows.push(Row::default());
             return;
         }
         let new_row = self.rows.get_mut(at.y).unwrap().split(at.x);
         self.rows.insert(at.y + 1, new_row);
+    }
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
     }
 }
